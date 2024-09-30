@@ -1,0 +1,85 @@
+// "Batch FIJI Processing of Images Organized in Folders"
+//
+// This macro batch processes all the files in a folder and any
+// subfolders in that folder. It performs the batch processes that
+// outline and measure cells for the quantitative germination assay 
+// of filamentous fungi - specifically designed for Aspergillus 
+// fumigatus. 
+
+// Operational Note: All images must be within an "Input" folder, and
+// empty "Output" and "Data" folders must be in the same folder as the
+// "Input" folder. If these folders are named differently, then the
+// processing will fail.
+
+// Functions in this macro are run by FIJI. Batch script for
+// measuring and outlining cells originally designed by Layla Barkal, 
+// adapted by Hunter Gage and modified further by Sebastien Ortiz to 
+// work for most filamentous fungi.
+
+// Last updated: 28-September-2024. 
+
+run("Set Measurements...", "area min shape area_fraction fit redirect=None decimal=3");
+
+   requires("1.33s"); 
+   dir = getDirectory("Choose a Directory ");
+   setBatchMode(true);
+   count = 0;
+   countFiles(dir);
+   n = 0;
+   processFiles(dir);
+
+   function countFiles(dir) {
+      list = getFileList(dir);
+      for (i=0; i<list.length; i++) {
+          if (endsWith(list[i], "/"))
+              countFiles(""+dir+list[i]);
+          else
+              count++;
+      }
+  }
+
+   function processFiles(dir) {
+      if (indexOf(dir, "Output") >= 0) {
+          return;
+      }
+      list = getFileList(dir);
+      for (i=0; i<list.length; i++) {
+          if (endsWith(list[i], "/"))
+              processFiles(""+dir+list[i]);
+          else {
+             showProgress(n++, count);
+             path = dir+list[i];
+             processFile(path);
+          }
+      }
+  }
+
+  function processFile(path) {
+       if (indexOf(dir, "Output") >= 0) {
+          return;
+       }
+       if (endsWith(path, ".tif")) {
+           open(path);
+           run("8-bit");
+           setMinAndMax(38, 166);
+           call("ij.ImagePlus.setDefault16bitRange", 8);
+           name = getTitle; 
+           dir = getDirectory("image"); 
+           run("8-bit");
+           setAutoThreshold("IsoData");
+           setOption("BlackBackground", false);
+           run("Convert to Mask");
+           run("Close-");
+           run("Fill Holes");
+           run("Adjustable Watershed", "tolerance=2");
+           roiManager("Show All with labels");
+           roiManager("Show All");
+           run("Analyze Particles...", "size=25-2000000 circularity=0.00-1.00 show=Outlines display exclude clear");
+           parent_path = File.getParent(path);
+	   grandparent_path = File.getParent(parent_path) + "/";
+           saveAs("Results",grandparent_path+"Data/"+name+"results.csv");
+	   saveAs("tif",grandparent_path+"Output/"+name);
+	   //save(path);
+           close();
+      }
+  }
